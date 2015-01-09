@@ -307,6 +307,29 @@ def load_json(resource_listing, http_client=None, processors=None):
     return resource_listing
 
 
+class ClassPropertyDescriptor(object):
+
+    def __init__(self, fget, *args):
+        self.fget = fget
+        self.args = args
+
+    def __get__(self, obj, klass=None):
+        if klass is None:
+            klass = type(obj)
+        return self.fget.__get__(obj, klass)(*self.args)
+
+
+def classproperty(func, *args):
+    if not isinstance(func, (classmethod, staticmethod)):
+        func = classmethod(func)
+
+    return ClassPropertyDescriptor(func, *args)
+
+
+def model_docstring_wrapper(cls, props):
+    return create_model_docstring(props)
+
+
 def create_model_type(model):
     """creates a dynamic model from the model data present in the json
        :param model: Resource Model json containing id, properties
@@ -319,7 +342,7 @@ def create_model_type(model):
     methods = dict(
         # Magic Methods :
         # Define the docstring
-        __doc__=create_model_docstring(props),
+        __doc__=classproperty(model_docstring_wrapper, props),
         # Make equality work for dict & type OR type & type
         __eq__=lambda self, other: compare(self, other),
         # Define the constructor for the type
@@ -402,6 +425,7 @@ def create_model_docstring(props):
             name (str)
             id (long) : unique identifier for the pet
     """
+    print "create_model_docstring called!"
     types = swagger_type.get_swagger_types(props)
     docstring = "Attributes:\n\n\t"
     for prop in props.keys():
