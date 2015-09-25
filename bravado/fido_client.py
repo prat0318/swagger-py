@@ -39,6 +39,18 @@ class FidoResponseAdapter(IncomingResponse):
     def reason(self):
         return self._delegate.reason
 
+    @property
+    def finish_timestamp(self):
+        return self._delegate.finish_timestamp
+
+    @property
+    def start_timestamp(self):
+        return self._delegate.start_timestamp
+
+    @property
+    def headers(self):
+        return self._delegate.headers
+
     def json(self, **_):
         # TODO: pass the kwargs downstream
         return self._delegate.json()

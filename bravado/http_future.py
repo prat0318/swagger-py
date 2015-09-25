@@ -18,17 +18,23 @@ class HttpFuture(object):
         self.response_adapter = response_adapter
         self.response_callback = callback
 
-    def result(self, timeout=None):
+    def result(self, timeout=None, incoming_response_handler=None):
         """Blocking call to wait for API response
 
         :param timeout: Number of seconds to wait for a response. Defaults to
             None which means wait indefinitely.
         :type timeout: float
+        :param inner_response_handler: Function to additionally work on the
+                incoming response. It MUST take an incoming_response as arg. The
+                return result is ignored.
         :return: swagger response return value when given a callback or the
             http_response otherwise.
         """
         inner_response = self.future.result(timeout=timeout)
         incoming_response = self.response_adapter(inner_response)
+
+        if incoming_response_handler:
+            incoming_response_handler(incoming_response)
 
         if self.response_callback:
             swagger_return_value = self.response_callback(incoming_response)

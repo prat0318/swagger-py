@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import time
 
 from bravado_core.response import IncomingResponse
 import requests
@@ -177,6 +178,26 @@ class RequestsResponseAdapter(IncomingResponse):
     def reason(self):
         return self._delegate.reason
 
+    @property
+    def finish_timestamp(self):
+        """This is not present in actual `requests` lib, but is attached to
+        the `requests` response object after it gets created in
+        :class:`RequestsFutureAdapter`'s `result()`.
+        """
+        return self._delegate.finish_timestamp
+
+    @property
+    def start_timestamp(self):
+        """This is not present in actual `requests` lib, but is attached to
+        the `requests` response object after it gets created in
+        :class:`RequestsFutureAdapter`'s `result()`.
+        """
+        return self._delegate.start_timestamp
+
+    @property
+    def headers(self):
+        return self._delegate.headers
+
     def json(self, **kwargs):
         return self._delegate.json(**kwargs)
 
@@ -245,6 +266,9 @@ class RequestsFutureAdapter(object):
     def result(self, timeout=None):
         """Blocking call to wait for API response
 
+        Attaches `finish_timestamp` attr to the response object as a timestamp
+        when the response was received back.
+
         :param timeout: timeout in seconds to wait for response. Defaults to
             None to wait indefinitely.
         :type timeout: float
@@ -253,7 +277,10 @@ class RequestsFutureAdapter(object):
         """
         request = self.request
         prepared_request = self.session.prepare_request(request)
+        start_timestamp = time.time()
         response = self.session.send(
             prepared_request,
             timeout=self.build_timeout(timeout))
+        response.start_timestamp = start_timestamp
+        response.finish_timestamp = time.time()
         return response
