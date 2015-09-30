@@ -74,20 +74,29 @@ class HTTPFuture(object):
 
         :param timeout: timeout in seconds to wait for response
         :type timeout: integer
+        :param incoming_response_handler: Function to additionally work on the
+                incoming response. It MUST take an incoming_response as arg. The
+                return result is ignored.
         :param allow_null: if True, allow null fields in response
         :type allow_null: boolean
         :param raw_response: if True, return raw response w/o any validations
         :type raw_response: boolean
         """
         timeout = kwargs.pop('timeout', DEFAULT_TIMEOUT_S)
+        incoming_response_handler = kwargs.pop(
+            'incoming_response_handler', None)
 
         if self.cancelled():
             raise CancelledError()
         response = self._request.wait(timeout=timeout)
+
         try:
             response.raise_for_status()
         except Exception as e:
             handle_response_errors(e)
+
+        if incoming_response_handler:
+            incoming_response_handler(response)
 
         return self._post_receive(response, **kwargs)
 

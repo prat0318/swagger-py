@@ -9,6 +9,7 @@
 """HTTP client abstractions.
 """
 import logging
+import time
 import urlparse
 
 import requests
@@ -198,9 +199,13 @@ class SynchronousEventual(object):
         """
         request = self.request
         log.debug(u"%s %s(%r)", request.method, request.url, request.params)
-        return self.session.send(
+        start_timestamp = time.time()
+        response = self.session.send(
             self.session.prepare_request(request),
             timeout=timeout)
+        response.finish_timestamp = time.time()
+        response.start_timestamp = start_timestamp
+        return response
 
     def cancel(self):
         pass

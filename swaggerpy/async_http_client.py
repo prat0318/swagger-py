@@ -11,6 +11,7 @@
 from cStringIO import StringIO
 from swaggerpy.compat import json
 import logging
+import time
 
 import crochet
 import twisted.internet.error
@@ -70,6 +71,7 @@ class AsynchronousHttpClient(http_client.HttpClient):
         """
         finished_resp = Deferred()
         agent = Agent(reactor)
+        start_timestamp = time.time()
         deferred = agent.request(**request_params)
 
         def response_callback(response):
@@ -78,8 +80,8 @@ class AsynchronousHttpClient(http_client.HttpClient):
             It needs a callback method to be registered to store the response
             body which is provided using deliverBody
             """
-            response.deliverBody(_HTTPBodyFetcher(request_params,
-                                                  response, finished_resp))
+            response.deliverBody(_HTTPBodyFetcher(
+                request_params, response, finished_resp, start_timestamp))
         deferred.addCallback(response_callback)
 
         def response_errback(reason):
@@ -99,11 +101,13 @@ class AsyncResponse(object):
     Remove the property text and content and make them as overridable attrs
     """
 
-    def __init__(self, req, resp, data):
+    def __init__(self, req, resp, data, start_timestamp, finish_timestamp):
         self.request = req
         self.status_code = resp.code
         self.headers = dict(resp.headers.getAllRawHeaders())
         self.text = data
+        self.start_timestamp = start_timestamp
+        self.finish_timestamp = finish_timestamp
 
     def raise_for_status(self):
         """Raises stored `HTTPError`, if one occured.
@@ -131,11 +135,12 @@ class _HTTPBodyFetcher(Protocol):
     Eventually AsyncResponse() is created on receiving complete response
     """
 
-    def __init__(self, request, response, finished):
+    def __init__(self, request, response, finished, start_timestamp):
         self.buffer = StringIO()
         self.request = request
         self.response = response
         self.finished = finished
+        self.start_timestamp = start_timestamp
 
     def dataReceived(self, data):
         self.buffer.write(data)
@@ -145,8 +150,10 @@ class _HTTPBodyFetcher(Protocol):
         # and not sending Content-Length in the header
         if reason.check(twisted.web.client.ResponseDone) or \
                 reason.check(twisted.web.http.PotentialDataLoss):
+            finish_timestamp = time.time()
             self.finished.callback(AsyncResponse(
-                self.request, self.response, self.buffer.getvalue()))
+                self.request, self.response, self.buffer.getvalue(),
+                self.start_timestamp, finish_timestamp))
         else:
             self.finished.errback(reason)
 
@@ -167,6 +174,7 @@ def stringify_body(request_params):
 def listify_headers(headers):
     """Twisted agent requires header values as lists
     """
+    headers = headers.copy()
     for key, val in headers.iteritems():
         if not isinstance(val, list):
             headers[key] = [val]
